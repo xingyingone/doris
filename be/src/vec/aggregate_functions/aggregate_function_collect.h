@@ -221,11 +221,32 @@ struct AggregateFunctionCollectListData {
 
     void reset() { data.clear(); }
 
-    void insert_result_into(IColumn& to) const {
-        auto& vec = assert_cast<ColVecType&>(to).get_data();
-        size_t old_size = vec.size();
-        vec.resize(old_size + size());
-        memcpy(vec.data() + old_size, data.data(), size() * sizeof(ElementType));
+    void insert_result_into(IColumn& to, bool shownull = false) const {
+        if (shownull == false) {
+            auto& vec = assert_cast<ColVecType&>(to).get_data();
+            size_t old_size = vec.size();
+            vec.resize(old_size + size());
+            memcpy(vec.data() + old_size, data.data(), size() * sizeof(ElementType));
+        } else {
+            auto& to_arr = assert_cast<ColumnArray&>(to);
+            auto& to_nested_col = to_arr.get_data();
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
+            size_t old_size = vec.size();
+            size_t num_rows = data.size();
+            vec.resize(old_size + num_rows);
+            memcpy(vec.data() + old_size, data.data(), num_rows * sizeof(ElementType));
+            DCHECK(to_nested_col.is_nullable());
+            for (size_t i = 0; i < num_rows; ++i) {
+                auto column = data[i];
+                if (column) {
+                    col_null->get_null_map_data().push_back(0);
+                } else {
+                    col_null->get_null_map_data().push_back(1);
+                }
+            }
+            to_arr.get_offsets().push_back(to_nested_col.size());
+        }
     }
 };
 
@@ -282,15 +303,37 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit> {
 
     void reset() { data->clear(); }
 
-    void insert_result_into(IColumn& to) const {
-        auto& to_str = assert_cast<ColVecType&>(to);
-        to_str.insert_range_from(*data, 0, size());
+    void insert_result_into(IColumn& to, bool shownull = false) const {
+        if (shownull == false) {
+            auto& to_str = assert_cast<ColVecType&>(to);
+            to_str.insert_range_from(*data, 0, size());
+        } else {
+            auto& to_arr = assert_cast<ColumnArray&>(to);
+            auto& to_nested_col = to_arr.get_data();
+            size_t num_rows = data->size();
+            DCHECK(to_nested_col.is_nullable());
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            for (size_t i = 0; i < num_rows; ++i) {
+                auto column = data->get_data_at(i);
+                assert_cast<ColVecType&>(col_null->get_nested_column())
+                        .insert_data(column.data, column.size);
+                if (column.data == NULL || column.size == 0) {
+                    col_null->get_null_map_data().push_back(1);
+                } else {
+                    col_null->get_null_map_data().push_back(0);
+                }
+            }
+            to_arr.get_offsets().push_back(to_nested_col.size());
+        }
     }
 };
 
-template <typename Data, typename HasLimit>
+//ShowNull is just used to support array_agg because array_agg needs to display NULL
+//todo: Supports order by sorting for array_agg
+template <typename Data, typename HasLimit, typename ShowNull>
 class AggregateFunctionCollect
-        : public IAggregateFunctionDataHelper<Data, AggregateFunctionCollect<Data, HasLimit>> {
+        : public IAggregateFunctionDataHelper<Data,
+                                              AggregateFunctionCollect<Data, HasLimit, ShowNull>> {
     using GenericType = AggregateFunctionCollectSetData<StringRef, HasLimit>;
 
     static constexpr bool ENABLE_ARENA = std::is_same_v<Data, GenericType>;
@@ -298,14 +341,17 @@ class AggregateFunctionCollect
 public:
     AggregateFunctionCollect(const DataTypes& argument_types,
                              UInt64 max_size_ = std::numeric_limits<UInt64>::max())
-            : IAggregateFunctionDataHelper<Data, AggregateFunctionCollect<Data, HasLimit>>(
+            : IAggregateFunctionDataHelper<Data,
+                                           AggregateFunctionCollect<Data, HasLimit, ShowNull>>(
                       {argument_types}),
               return_type(argument_types[0]) {}
 
     std::string get_name() const override {
-        if constexpr (std::is_same_v<AggregateFunctionCollectListData<typename Data::ElementType,
-                                                                      HasLimit>,
-                                     Data>) {
+        if constexpr (ShowNull::value) {
+            return "array_agg";
+        } else if constexpr (std::is_same_v<AggregateFunctionCollectListData<
+                                                    typename Data::ElementType, HasLimit>,
+                                            Data>) {
             return "collect_list";
         } else {
             return "collect_set";
@@ -333,7 +379,12 @@ public:
         if constexpr (ENABLE_ARENA) {
             data.add(*columns[0], row_num, arena);
         } else {
-            data.add(*columns[0], row_num);
+            if (ShowNull::value && columns[0]->is_nullable()) {
+                auto& nullable_col = assert_cast<const ColumnNullable&>(*columns[0]);
+                data.add(nullable_col.get_nested_column(), row_num);
+            } else {
+                data.add(*columns[0], row_num);
+            }
         }
     }
 
@@ -360,14 +411,19 @@ public:
     void insert_result_into(ConstAggregateDataPtr __restrict place, IColumn& to) const override {
         auto& to_arr = assert_cast<ColumnArray&>(to);
         auto& to_nested_col = to_arr.get_data();
-        if (to_nested_col.is_nullable()) {
-            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
-            this->data(place).insert_result_into(col_null->get_nested_column());
-            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
+        if constexpr (ShowNull::value) {
+            DCHECK(to_nested_col.is_nullable());
+            this->data(place).insert_result_into(to, true);
         } else {
-            this->data(place).insert_result_into(to_nested_col);
+            if (to_nested_col.is_nullable()) {
+                auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+                this->data(place).insert_result_into(col_null->get_nested_column());
+                col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
+            } else {
+                this->data(place).insert_result_into(to_nested_col);
+            }
+            to_arr.get_offsets().push_back(to_nested_col.size());
         }
-        to_arr.get_offsets().push_back(to_nested_col.size());
     }
 
 private:
