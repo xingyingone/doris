@@ -39,7 +39,7 @@ namespace doris::vectorized {
   */
     template<typename Data, typename T>
     class AggregateFunctionArrayAgg final :
-            public IAggregateFunctionHelper<Data, AggregateFunctionArrayAgg<Data,T>> {
+            public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data,T>> {
     private:
 
     public:
@@ -47,7 +47,7 @@ namespace doris::vectorized {
 
         AggregateFunctionArrayAgg() = default;
 
-        AggregateFunctionArrayAgg(const DataTypes& argument_types_) : IAggregateFunctionHelper<Data,
+        AggregateFunctionArrayAgg(const DataTypes& argument_types_) : IAggregateFunctionDataHelper<Data,
                 AggregateFunctionArrayAgg<Data, T>>(argument_types_) {}
 
         std::string get_name() const override {
