@@ -22,6 +22,7 @@
 #include "vec/aggregate_functions/aggregate_function.h"
 #include "vec/aggregate_functions/aggregate_function_simple_factory.h"
 #include "vec/columns/column_decimal.h"
+#include "vec/data_types/data_type_array.h"
 namespace doris::vectorized {
 template <typename T>
 struct AggregateFunctionArrayAggData {
