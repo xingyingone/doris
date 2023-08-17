@@ -22,8 +22,6 @@
 #include "vec/aggregate_functions/aggregate_function.h"
 #include "vec/aggregate_functions/aggregate_function_simple_factory.h"
 #include "vec/columns/column_decimal.h"
-//todo : need remove
-#include "vec/data_types/data_type_map.h"
 namespace doris::vectorized {
 template <typename T>
 struct AggregateFunctionArrayAggData {
@@ -63,9 +61,7 @@ public:
     }
 
     DataTypePtr get_return_type() const override {
-        //todo no map
-        return std::make_shared<DataTypeMap>(make_nullable(argument_types[0]),
-                                             make_nullable(argument_types[1]));
+        return std::make_shared<DataTypeArray>(make_nullable(argument_types[0]));
     }
 
     void reset(AggregateDataPtr place) const override {
