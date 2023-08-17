@@ -35,9 +35,9 @@ namespace doris::vectorized {
             //todo
         }
 
-        void add(const ColumnType &column, size_t offset, size_t count) { data_column.append(column, offset, count); }
+        void add(const ColumnType &column, size_t offset, size_t count) { /*data_column.append(column, offset, count);*/ }
 
-        ColumnType data_column; // Aggregated elements for array_agg
+        //ColumnType data_column; // Aggregated elements for array_agg
     };
 
 /** Not an aggregate function, but an adapter of aggregate functions,
