@@ -1401,7 +1401,7 @@ public class FunctionSet<T> {
                             t, "", "", "", "", "", true, false, true, true));
 
             addBuiltin(AggregateFunction.createBuiltin(ARRAY_AGG, Lists.newArrayList(t), new ArrayType(t), new ArrayType(t), "", "", "", "", "",
-                   true, false, false, true));
+                    true, false, false, true));
 
             //first_value/last_value for array
             addBuiltin(AggregateFunction.createAnalyticBuiltin("first_value",
