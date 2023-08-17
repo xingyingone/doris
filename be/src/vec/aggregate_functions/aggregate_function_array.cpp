@@ -62,5 +62,9 @@ namespace doris::vectorized {
         return nullptr;
     }
 
+    void register_aggregate_function_array_agg(AggregateFunctionSimpleFactory& factory) {
+        factory.register_function_both("array_agg", create_aggregate_function_array_agg);
+    }
+
 
 }
