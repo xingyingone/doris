@@ -40,7 +40,6 @@ namespace doris::vectorized {
     template<typename Data, typename T>
     class AggregateFunctionArrayAgg final :
             public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data,T>> {
-    private:
 
     public:
         using InputColumnType = ColumnVector<T>;
@@ -55,7 +54,7 @@ namespace doris::vectorized {
         }
 
         void create(AggregateDataPtr __restrict place) const override {
-            new (place) Data(argument_types_);
+            new (place) Data(argument_types);
         }
 
         void
@@ -64,6 +63,8 @@ namespace doris::vectorized {
             this->data(place)(column, row_num, 1);
         }
 
+    protected:
+        using IAggregateFunction::argument_types;
 
     }
 
