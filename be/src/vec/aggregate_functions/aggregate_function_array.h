@@ -38,7 +38,7 @@ namespace doris::vectorized {
   * The adapted aggregate function calculates nested aggregate function for each element of the array.
   */
     template<typename Data, typename T>
-    class AggregateFunctionArrayAgg final :
+    class AggregateFunctionArrayAgg /* to do final*/ :
             public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data,T>> {
 
     public:
