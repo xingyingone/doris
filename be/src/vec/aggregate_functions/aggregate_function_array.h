@@ -37,8 +37,8 @@ struct AggregateFunctionArrayAggData {
     }
 
     void add(const StringRef& column) {
-        ArenaKeyHolder key_holder {key, _arena};
-        if (key.size > 0) {
+        ArenaKeyHolder key_holder {column, _arena};
+        if (column.size > 0) {
             key_holder_persist_key(key_holder);
         }
         _key_column->insert_data(key_holder.key.data, key_holder.key.size);
