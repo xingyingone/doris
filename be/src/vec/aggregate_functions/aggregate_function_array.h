@@ -45,7 +45,7 @@ struct AggregateFunctionArrayAggData {
     }
 
     void reset() {
-        _column.clear();
+        _column->clear();
     }
 private:
     IColumn::MutablePtr _column;
