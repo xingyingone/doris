@@ -101,7 +101,7 @@ public:
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
         this->data(place).add(
-                assert_cast<const KeyColumnType&>(*columns[0]).get_data_at(row_num));
+                assert_cast<const ColumnType&>(*columns[0]).get_data_at(row_num));
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
