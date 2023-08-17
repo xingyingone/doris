@@ -41,7 +41,7 @@ struct AggregateFunctionArrayAggData {
         if (column.size > 0) {
             key_holder_persist_key(key_holder);
         }
-        _key_column->insert_data(key_holder.key.data, key_holder.key.size);
+        _column->insert_data(key_holder.key.data, key_holder.key.size);
     }
 
     void reset() {
