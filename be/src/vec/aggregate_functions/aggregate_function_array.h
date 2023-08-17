@@ -27,7 +27,7 @@
 namespace doris::vectorized {
     template<typename T>
     struct AggregateFunctionArrayAggData {
-        using ColumnType = ColumnVector<T>;
+       // using ColumnType = ColumnVector<T>;
 
         AggregateFunctionArrayAggData() { __builtin_unreachable(); }
 
