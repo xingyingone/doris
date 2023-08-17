@@ -86,7 +86,7 @@ public:
 
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
-        //const auto &column = down_cast<const InputColumnType &>(*columns[0]);
+        const auto &column = down_cast<const InputColumnType &>(*columns[0]);
         //this->data(place).add(column, row_num, 1);
     }
 
