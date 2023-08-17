@@ -26,7 +26,7 @@
 namespace doris::vectorized {
 template <typename T>
 struct AggregateFunctionArrayAggData {
-    // using ColumnType = ColumnVector<T>;
+    using ColumnType = ColumnVector<T>;
 
     AggregateFunctionArrayAggData() { __builtin_unreachable(); }
 
@@ -34,9 +34,9 @@ struct AggregateFunctionArrayAggData {
         //todo
     }
 
-    //void add(const ColumnType &column, size_t offset, size_t count) { /*data_column.append(column, offset, count);*/ }
+    void add(const ColumnType &column, size_t offset, size_t count) { data_column.append(column, offset, count); }
 
-    //ColumnType data_column; // Aggregated elements for array_agg
+    ColumnType data_column; // Aggregated elements for array_agg
 };
 
 /** Not an aggregate function, but an adapter of aggregate functions,
@@ -87,7 +87,7 @@ public:
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
         const auto &column = down_cast<const InputColumnType &>(*columns[0]);
-        //this->data(place).add(column, row_num, 1);
+        this->data(place).add(column, row_num, 1);
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
