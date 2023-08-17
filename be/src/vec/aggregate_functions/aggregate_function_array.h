@@ -28,7 +28,7 @@ namespace doris::vectorized {
     struct AggregateFunctionArrayAggData {
         using ColumnType = ColumnVector<T>;
 
-        void add(const ColumnType& column,size_t offset,size_t count) { data_column.append(column, offset, count); }
+        void add(const ColumnType &column, size_t offset, size_t count) { data_column.append(column, offset, count); }
 
         ColumnType data_column; // Aggregated elements for array_agg
     };
@@ -39,14 +39,14 @@ namespace doris::vectorized {
   */
     template<typename Data, typename T>
     class AggregateFunctionArrayAgg :
-            public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data,T>> {
+            public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data, T>> {
 
     public:
         using InputColumnType = ColumnVector<T>;
 
         AggregateFunctionArrayAgg() = default;
 
-        AggregateFunctionArrayAgg(const DataTypes& argument_types_) : IAggregateFunctionDataHelper<Data,
+        AggregateFunctionArrayAgg(const DataTypes &argument_types_) : IAggregateFunctionDataHelper<Data,
                 AggregateFunctionArrayAgg<Data, T>>(argument_types_) {}
 
         std::string get_name() const override {
@@ -54,7 +54,7 @@ namespace doris::vectorized {
         }
 
         void create(AggregateDataPtr __restrict place) const override {
-            new (place) Data(argument_types);
+            new(place) Data(argument_types);
         }
 
         DataTypePtr get_return_type() const override {
@@ -62,85 +62,90 @@ namespace doris::vectorized {
             return std::make_shared<DataTypeMap>(make_nullable(argument_types[0]),
                                                  make_nullable(argument_types[1]));
         }
-        void reset(AggregateDataPtr place) const override { //todo }
+
+        void reset(AggregateDataPtr place) const override {
+            //todo
+        }
 
         void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs,
-                   Arena* arena) const override {
-                //todo
+                   Arena *arena) const override {
+            //todo
         }
 
         void serialize(ConstAggregateDataPtr /* __restrict place */,
-                       BufferWritable& /* buf */) const override {
+                       BufferWritable & /* buf */) const override {
             __builtin_unreachable();
         }
 
-        void deserialize(AggregateDataPtr /* __restrict place */, BufferReadable& /* buf */,
-                         Arena*) const override {
+        void deserialize(AggregateDataPtr /* __restrict place */, BufferReadable & /* buf */,
+                         Arena *) const override {
             __builtin_unreachable();
         }
 
         void
         add(AggregateDataPtr __restrict place, const IColumn **columns, size_t row_num, Arena *arena) const override {
-            const auto& column = down_cast<const InputColumnType&>(*columns[0]);
+            const auto &column = down_cast<const InputColumnType &>(*columns[0]);
             this->data(place)(column, row_num, 1);
         }
 
-        void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
-            const size_t num_rows, Arena* arena) const override{
-                //todo
+        void streaming_agg_serialize_to_column(const IColumn **columns, MutableColumnPtr &dst,
+                                               const size_t num_rows, Arena *arena) const override {
+            //todo
         }
 
-        void deserialize_from_column(AggregateDataPtr places, const IColumn& column, Arena* arena,
-            size_t num_rows) const override{
-                //todo
+        void deserialize_from_column(AggregateDataPtr places, const IColumn &column, Arena *arena,
+                                     size_t num_rows) const override {
+            //todo
         }
 
-        void serialize_to_column(const std::vector<AggregateDataPtr>& places, size_t offset,
-            MutableColumnPtr& dst, const size_t num_rows) const override{
-                //todo
+        void serialize_to_column(const std::vector <AggregateDataPtr> &places, size_t offset,
+                                 MutableColumnPtr &dst, const size_t num_rows) const override {
+            //todo
         }
 
-        void deserialize_and_merge_from_column(AggregateDataPtr __restrict place, const IColumn& column,
-            Arena* arena) const override {
-                //todo
+        void deserialize_and_merge_from_column(AggregateDataPtr __restrict place, const IColumn &column,
+                                               Arena *arena) const override {
+            //todo
         }
 
         void deserialize_and_merge_from_column_range(AggregateDataPtr __restrict place,
-                                                         const IColumn& column, size_t begin, size_t end,Arena* arena) const override {
-                //todo
+                                                     const IColumn &column, size_t begin, size_t end,
+                                                     Arena *arena) const override {
+            //todo
         }
 
 
-        void deserialize_and_merge_vec(const AggregateDataPtr* places, size_t offset,
-                                           AggregateDataPtr rhs, const ColumnString* column, Arena* arena,
-            const size_t num_rows) const override {
+        void deserialize_and_merge_vec(const AggregateDataPtr *places, size_t offset,
+                                       AggregateDataPtr rhs, const ColumnString *column, Arena *arena,
+                                       const size_t num_rows) const override {
             //todo
-            }
+        }
 
-            void deserialize_and_merge_vec_selected(const AggregateDataPtr* places, size_t offset,
-                                                    AggregateDataPtr rhs, const ColumnString* column,
-            Arena* arena, const size_t num_rows) const override {
-                //todo
-            }
+        void deserialize_and_merge_vec_selected(const AggregateDataPtr *places, size_t offset,
+                                                AggregateDataPtr rhs, const ColumnString *column,
+                                                Arena *arena, const size_t num_rows) const override {
+            //todo
+        }
 
-            void serialize_without_key_to_column(ConstAggregateDataPtr __restrict place,
-            IColumn& to) const override {
-                //todo
-            }
+        void serialize_without_key_to_column(ConstAggregateDataPtr __restrict place,
+                                             IColumn &to) const override {
+            //todo
+        }
 
-            void insert_result_into(ConstAggregateDataPtr __restrict place, IColumn& to) const override {
-                    //todo
-            }
+        void insert_result_into(ConstAggregateDataPtr __restrict place, IColumn &to) const override {
+            //todo
+        }
 
-            [[nodiscard]] MutableColumnPtr create_serialize_column() const override {
-                return get_return_type()->create_column();
-            }
+        [[nodiscard]] MutableColumnPtr create_serialize_column() const override {
+            return get_return_type()->create_column();
+        }
 
-            [[nodiscard]] DataTypePtr get_serialized_type() const override { return get_return_type(); }
+        [[nodiscard]] DataTypePtr get_serialized_type() const override { return get_return_type(); }
 
-        protected:
-            using IAggregateFunction::argument_types;
+    protected:
+        using IAggregateFunction::argument_types;
 
     };
 
-};
+} // namespace doris::vectorized
+
