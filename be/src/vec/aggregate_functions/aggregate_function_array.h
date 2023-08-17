@@ -26,17 +26,28 @@
 namespace doris::vectorized {
 template <typename T>
 struct AggregateFunctionArrayAggData {
-    using ColumnType = ColumnVector<T>;
-
+    using Type = std::conditional_t<std::is_same_v<K, String>, StringRef, K>;
     AggregateFunctionArrayAggData() { __builtin_unreachable(); }
 
     AggregateFunctionArrayAggData(const DataTypes& argument_types) {
-        //todo
+        _type = remove_nullable(argument_types[0]);
+        _column = _type->create_column();
     }
 
-    void add(const ColumnType &column, size_t offset, size_t count) { data_column.append(column, offset, count); }
+    void add(const StringRef& column) {
+        ArenaKeyHolder key_holder {key, _arena};
+        if (key.size > 0) {
+            key_holder_persist_key(key_holder);
+        }
+        _key_column->insert_data(key_holder.key.data, key_holder.key.size);
+    }
 
-    ColumnType data_column; // Aggregated elements for array_agg
+    void reset() {
+        _column.clear();
+    }
+private:
+    IColumn::MutablePtr _column;
+    DataTypePtr _type;
 };
 
 /** Not an aggregate function, but an adapter of aggregate functions,
@@ -47,8 +58,8 @@ template <typename Data, typename T>
 class AggregateFunctionArrayAgg
         : public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data, T>> {
 public:
-    using InputColumnType = ColumnVector<T>;
-
+    using ColumnType =
+            std::conditional_t<std::is_same_v<String, K>, ColumnString, ColumnVectorOrDecimal<K>>;
     AggregateFunctionArrayAgg() = default;
 
     AggregateFunctionArrayAgg(const DataTypes& argument_types_)
@@ -86,8 +97,8 @@ public:
 
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
-        const auto &column = down_cast<const InputColumnType &>(*columns[0]);
-        this->data(place).add(column, row_num, 1);
+        this->data(place).add(
+                assert_cast<const KeyColumnType&>(*columns[0].get_data_at(row_num)));
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
