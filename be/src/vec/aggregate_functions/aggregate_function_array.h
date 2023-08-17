@@ -47,7 +47,7 @@ namespace doris::vectorized {
 
         AggregateFunctionArrayAgg() = default;
 
-        AggregateFunctionArrayAgg(const DataType &argument_types_) : IAggregateFunctionHelper<Data,
+        AggregateFunctionArrayAgg(const DataTypes& argument_types_) : IAggregateFunctionHelper<Data,
                 AggregateFunctionArrayAgg<Data, T>>(argument_types_) {}
 
         std::string get_name() const override {
@@ -55,7 +55,7 @@ namespace doris::vectorized {
         }
 
         void create(AggregateDataPtr __restrict place) const override {
-            new (place) Data(argument_types);
+            new (place) Data(argument_types_);
         }
 
         void
