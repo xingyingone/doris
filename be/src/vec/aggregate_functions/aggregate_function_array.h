@@ -50,6 +50,7 @@ struct AggregateFunctionArrayAggData {
 private:
     IColumn::MutablePtr _column;
     DataTypePtr _type;
+    Arena _arena;
 };
 
 /** Not an aggregate function, but an adapter of aggregate functions,
