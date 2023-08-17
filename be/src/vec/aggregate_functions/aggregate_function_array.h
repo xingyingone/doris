@@ -23,8 +23,10 @@
 #include "vec/aggregate_functions/aggregate_function_simple_factory.h"
 #include "vec/columns/column_decimal.h"
 #include "vec/data_types/data_type_array.h"
+#include "vec/common/assert_cast.h"
+#include "vec/common/hash_table/hash_table_key_holder.h"
 namespace doris::vectorized {
-template <typename T>
+template <typename K>
 struct AggregateFunctionArrayAggData {
     using Type = std::conditional_t<std::is_same_v<K, String>, StringRef, K>;
     AggregateFunctionArrayAggData() { __builtin_unreachable(); }
@@ -98,7 +100,7 @@ public:
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
         this->data(place).add(
-                assert_cast<const KeyColumnType&>(*columns[0].get_data_at(row_num)));
+                assert_cast<const KeyColumnType&>(*columns[0]).get_data_at(row_num));
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
