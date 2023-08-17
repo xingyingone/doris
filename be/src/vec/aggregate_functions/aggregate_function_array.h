@@ -62,7 +62,7 @@ class AggregateFunctionArrayAgg
         : public IAggregateFunctionDataHelper<Data, AggregateFunctionArrayAgg<Data, T>> {
 public:
     using ColumnType =
-            std::conditional_t<std::is_same_v<String, K>, ColumnString, ColumnVectorOrDecimal<K>>;
+            std::conditional_t<std::is_same_v<String, T>, ColumnString, ColumnVectorOrDecimal<T>>;
     AggregateFunctionArrayAgg() = default;
 
     AggregateFunctionArrayAgg(const DataTypes& argument_types_)
