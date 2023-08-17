@@ -66,6 +66,6 @@ namespace doris::vectorized {
     protected:
         using IAggregateFunction::argument_types;
 
-    }
+    };
 
 };
