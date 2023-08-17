@@ -35,7 +35,7 @@ namespace doris::vectorized {
             //todo
         }
 
-        void add(const ColumnType &column, size_t offset, size_t count) { /*data_column.append(column, offset, count);*/ }
+        //void add(const ColumnType &column, size_t offset, size_t count) { /*data_column.append(column, offset, count);*/ }
 
         //ColumnType data_column; // Aggregated elements for array_agg
     };
@@ -91,8 +91,8 @@ namespace doris::vectorized {
 
         void
         add(AggregateDataPtr __restrict place, const IColumn **columns, size_t row_num, Arena *arena) const override {
-            const auto &column = down_cast<const InputColumnType &>(*columns[0]);
-            this->data(place).add(column, row_num, 1);
+            //const auto &column = down_cast<const InputColumnType &>(*columns[0]);
+            //this->data(place).add(column, row_num, 1);
         }
 
         void streaming_agg_serialize_to_column(const IColumn **columns, MutableColumnPtr &dst,
