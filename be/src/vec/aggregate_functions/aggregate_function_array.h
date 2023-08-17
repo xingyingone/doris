@@ -29,6 +29,12 @@ namespace doris::vectorized {
     struct AggregateFunctionArrayAggData {
         using ColumnType = ColumnVector<T>;
 
+        AggregateFunctionArrayAggData() { __builtin_unreachable(); }
+
+        AggregateFunctionArrayAggData(const DataTypes& argument_types) {
+            //todo
+        }
+
         void add(const ColumnType &column, size_t offset, size_t count) { data_column.append(column, offset, count); }
 
         ColumnType data_column; // Aggregated elements for array_agg
@@ -55,7 +61,7 @@ namespace doris::vectorized {
         }
 
         void create(AggregateDataPtr __restrict place) const override {
-            new(place) Data(argument_types);
+            new (place) Data(argument_types);
         }
 
         DataTypePtr get_return_type() const override {
