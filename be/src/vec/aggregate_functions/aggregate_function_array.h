@@ -92,7 +92,7 @@ namespace doris::vectorized {
         void
         add(AggregateDataPtr __restrict place, const IColumn **columns, size_t row_num, Arena *arena) const override {
             const auto &column = down_cast<const InputColumnType &>(*columns[0]);
-            this->data(place)(column, row_num, 1);
+            this->data(place).add(column, row_num, 1);
         }
 
         void streaming_agg_serialize_to_column(const IColumn **columns, MutableColumnPtr &dst,
