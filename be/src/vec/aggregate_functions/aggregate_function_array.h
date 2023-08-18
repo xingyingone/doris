@@ -50,19 +50,28 @@ struct AggregateFunctionArrayAggData {
     }
 
     void insert_result_into(IColumn& to) const {
-        auto& dst=assert_cast<ColumnArray&>(to);
 
         size_t num_rows = _column->size();
-        for(int i=0;i<num_rows;++i){
-            auto column=static_cast<Type>(_column[i]).get_data_at(i);
-            ArenaKeyHolder key_holder{column ,_arena};
-            if (column.size > 0) {
-                key_holder_persist_key(key_holder);
-            }
-            assert_cast<Type&>(to).insert_data(key_holder.key.data,key_holder.key.size);
+        for(size_t i=0;i<num_rows;++i){
+            /*if constexpr (std::is_same_v<K, std::string>){
+                auto& tt=assert_cast<ColumnString&>(*_column);
+                auto column=static_cast<ColumnString&>(tt).get_data_at(i);
+                assert_cast<ColumnString&>(to).insert_data(column.data,column.size);
+            }else{
+                auto& tt=assert_cast<ColVecType&>(*_column);
+                auto column=static_cast<ColVecType&>(tt).get_data_at(i);
+                assert_cast<ColVecType&>(to).insert_data(column.data,column.size);
+            }*/
+
+            auto column=static_cast<ColumnType&>(*_column).get_data_at(i);
+
+            assert_cast<ColumnType&>(to).insert_data(column.data,column.size);
         }
     }
+
 private:
+    using ColumnType =
+            std::conditional_t<std::is_same_v<String, K>, ColumnString, ColumnVectorOrDecimal<K>>;
     IColumn::MutablePtr _column;
     DataTypePtr _type;
     Arena _arena;
