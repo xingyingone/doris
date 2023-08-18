@@ -22,6 +22,7 @@
 #include "vec/aggregate_functions/aggregate_function.h"
 #include "vec/aggregate_functions/aggregate_function_simple_factory.h"
 #include "vec/columns/column_decimal.h"
+#include "vec/columns/column_array.h"
 #include "vec/data_types/data_type_array.h"
 #include "vec/common/assert_cast.h"
 #include "vec/common/hash_table/hash_table_key_holder.h"
@@ -46,6 +47,20 @@ struct AggregateFunctionArrayAggData {
 
     void reset() {
         _column->clear();
+    }
+
+    void insert_result_into(IColumn& to) const {
+        auto& dst=assert_cast<ColumnArray&>(to);
+
+        size_t num_rows = _column->size();
+        for(int i=0;i<num_rows;++i){
+            auto column=static_cast<Type>(_column[i]).get_data_at(i);
+            ArenaKeyHolder key_holder{column ,_arena};
+            if (column.size > 0) {
+                key_holder_persist_key(key_holder);
+            }
+            assert_cast<Type&>(to).insert_data(key_holder.key.data,key_holder.key.size);
+        }
     }
 private:
     IColumn::MutablePtr _column;
@@ -100,8 +115,20 @@ public:
 
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
-        this->data(place).add(
-                assert_cast<const ColumnType&>(*columns[0]).get_data_at(row_num));
+        if(columns[0]->is_nullable()) {
+            auto& nullable_col = assert_cast<const ColumnNullable&>(*columns[0]);
+            auto& nullable_map = nullable_col.get_null_map_data();
+            if (nullable_map[row_num]) {
+                //todo
+                return;
+            }
+            this->data(place).add(
+                    assert_cast<const ColumnType&>(nullable_col.get_nested_column())
+                            .get_data_at(row_num));
+        } else {
+            this->data(place).add(
+                    assert_cast<const ColumnType&>(*columns[0]).get_data_at(row_num));
+        }
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
@@ -148,7 +175,16 @@ public:
     }
 
     void insert_result_into(ConstAggregateDataPtr __restrict place, IColumn& to) const override {
-        //todo
+        auto& to_arr = assert_cast<ColumnArray&>(to);
+        auto& to_nested_col = to_arr.get_data();
+        if (to_nested_col.is_nullable()) {
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            this->data(place).insert_result_into(col_null->get_nested_column());
+            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
+        } else {
+            this->data(place).insert_result_into(to_nested_col);
+        }
+        to_arr.get_offsets().push_back(to_nested_col.size());
     }
 
     [[nodiscard]] MutableColumnPtr create_serialize_column() const override {
