@@ -46,9 +46,24 @@ struct AggregateFunctionArrayAggData {
     }
 
     void add(const Field& column){
-        auto key_array = vectorized::get<Array>(column);
-        const auto count = key_array.size();
-        DCHECK_EQ(count, key_array.size());
+        auto column_array = vectorized::get<Array>(column);
+        const auto count = column_array.size();
+
+        for (size_t i = 0; i != count; ++i){
+           /* StringRef key;
+            if constexpr (std::is_same_v<K, String>) {
+                auto string = column_array[i].get<K>();
+                key = string;
+            } else {
+                auto& k = column_array[i].get<Type>();
+                key.data = reinterpret_cast<const char*>(&k);
+                key.size = sizeof(k);
+            }*/
+
+
+            _column->insert(column_array[i]);
+        }
+
     }
 
     void reset() {
@@ -151,14 +166,27 @@ public:
 
     void deserialize_and_merge_from_column(AggregateDataPtr __restrict place, const IColumn& column,
                                            Arena* arena) const override {
-      //  auto& column_arr = assert_cast<const ColumnArray&>(column);
-       // auto& column_nested_col = column_arr.get_data();
+        //auto& column_arr = assert_cast<const ColumnArray&>(column);
         const size_t num_rows = column.size();
         for (size_t i = 0; i != num_rows; ++i){
+            this->data(place).add(column[i]);
+        }
+      //  auto& column_arr = assert_cast<const ColumnArray&>(column);
+       // auto& column_nested_col = column_arr.get_data();
+     /*   const size_t num_rows = column.size();
+        for (size_t i = 0; i != num_rows; ++i){
 
+            StringRef key;
+            if constexpr (std::is_same_v<T, String>){
+                auto string = this->data(place).add(
+                        column[i].get<T>());
+                key = string;
+            }else{
+                auto& k = column[i].get<Type>();
+                key.data = reinterpret_cast<const char*>(&k);
+                key.size = sizeof(k);
+            }*/
 
-            this->data(place).add(
-                    column.get_data_at(i));
 
            /* if(column_nested_col.is_nullable()){
                 auto& nullable_col = assert_cast<const ColumnNullable&>(column);
@@ -174,7 +202,7 @@ public:
                 this->data(place).add(
                         assert_cast<const ColumnType&>(column).get_data_at(i));
             }*/
-        }
+        //}
 
 
 
