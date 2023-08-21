@@ -45,6 +45,12 @@ struct AggregateFunctionArrayAggData {
         _column->insert_data(key_holder.key.data, key_holder.key.size);
     }
 
+    void add(const Field& column){
+        auto key_array = vectorized::get<Array>(column);
+        const auto count = key_array.size();
+        DCHECK_EQ(count, key_array.size());
+    }
+
     void reset() {
         _column->clear();
     }
@@ -53,15 +59,6 @@ struct AggregateFunctionArrayAggData {
 
         size_t num_rows = _column->size();
         for(size_t i=0;i<num_rows;++i){
-            /*if constexpr (std::is_same_v<K, std::string>){
-                auto& tt=assert_cast<ColumnString&>(*_column);
-                auto column=static_cast<ColumnString&>(tt).get_data_at(i);
-                assert_cast<ColumnString&>(to).insert_data(column.data,column.size);
-            }else{
-                auto& tt=assert_cast<ColVecType&>(*_column);
-                auto column=static_cast<ColVecType&>(tt).get_data_at(i);
-                assert_cast<ColVecType&>(to).insert_data(column.data,column.size);
-            }*/
 
             auto column=static_cast<ColumnType&>(*_column).get_data_at(i);
 
@@ -103,13 +100,10 @@ public:
         return std::make_shared<DataTypeArray>(make_nullable(argument_types[0]));
     }
 
-    void reset(AggregateDataPtr place) const override {
-        //todo
-    }
+    void reset(AggregateDataPtr place) const override { this->data(place).reset(); }
 
     void merge(AggregateDataPtr __restrict place, ConstAggregateDataPtr rhs,
                Arena* arena) const override {
-        //todo
     }
 
     void serialize(ConstAggregateDataPtr /* __restrict place */,
@@ -157,7 +151,33 @@ public:
 
     void deserialize_and_merge_from_column(AggregateDataPtr __restrict place, const IColumn& column,
                                            Arena* arena) const override {
-        //todo
+      //  auto& column_arr = assert_cast<const ColumnArray&>(column);
+       // auto& column_nested_col = column_arr.get_data();
+        const size_t num_rows = column.size();
+        for (size_t i = 0; i != num_rows; ++i){
+
+
+            this->data(place).add(
+                    column.get_data_at(i));
+
+           /* if(column_nested_col.is_nullable()){
+                auto& nullable_col = assert_cast<const ColumnNullable&>(column);
+                auto& nullable_map = nullable_col.get_null_map_data();
+                if (nullable_map[i]) {
+                    //todo
+                    return;
+                }
+                this->data(place).add(
+                        assert_cast<const ColumnType&>(nullable_col.get_nested_column())
+                                .get_data_at(i));
+            }else{
+                this->data(place).add(
+                        assert_cast<const ColumnType&>(column).get_data_at(i));
+            }*/
+        }
+
+
+
     }
 
     void deserialize_and_merge_from_column_range(AggregateDataPtr __restrict place,
@@ -180,7 +200,16 @@ public:
 
     void serialize_without_key_to_column(ConstAggregateDataPtr __restrict place,
                                          IColumn& to) const override {
-        //todo
+        auto& to_arr = assert_cast<ColumnArray&>(to);
+        auto& to_nested_col = to_arr.get_data();
+        if (to_nested_col.is_nullable()) {
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            this->data(place).insert_result_into(col_null->get_nested_column());
+            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
+        } else {
+            this->data(place).insert_result_into(to_nested_col);
+        }
+        to_arr.get_offsets().push_back(to_nested_col.size());
     }
 
     void insert_result_into(ConstAggregateDataPtr __restrict place, IColumn& to) const override {
