@@ -156,7 +156,7 @@ public:
 
     void deserialize_from_column(AggregateDataPtr places, const IColumn& column, Arena* arena,
                                  size_t num_rows) const override {
-        //todo
+        __builtin_unreachable();
     }
 
     void serialize_to_column(const std::vector<AggregateDataPtr>& places, size_t offset,
@@ -238,7 +238,7 @@ public:
     void deserialize_and_merge_from_column_range(AggregateDataPtr __restrict place,
                                                  const IColumn& column, size_t begin, size_t end,
                                                  Arena* arena) const override {
-
+        __builtin_unreachable();
     }
 
     void deserialize_and_merge_vec(const AggregateDataPtr* places, size_t offset,
@@ -253,7 +253,12 @@ public:
     void deserialize_and_merge_vec_selected(const AggregateDataPtr* places, size_t offset,
                                             AggregateDataPtr rhs, const ColumnString* column,
                                             Arena* arena, const size_t num_rows) const override {
-        //todo
+        auto& col = assert_cast<const ColumnArray&>(*assert_cast<const IColumn*>(column));
+        for (size_t i = 0; i != num_rows; ++i){
+            if (places[i]){
+                this->data(places[i]).add(col[i]);
+            }
+        }
     }
 
     void serialize_without_key_to_column(ConstAggregateDataPtr __restrict place,
