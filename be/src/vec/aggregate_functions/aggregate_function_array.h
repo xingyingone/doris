@@ -161,7 +161,34 @@ public:
 
     void serialize_to_column(const std::vector<AggregateDataPtr>& places, size_t offset,
                              MutableColumnPtr& dst, const size_t num_rows) const override {
-        //todo
+
+        //for (size_t i = 0; i != num_rows; ++i) {
+         //   insert_result_into(places[i] + offset,assert_cast<IColumn&>(*dst));
+            //Data& data_ = this->data(places[i] + offset);
+            //data_.insert_result_into(*dst);
+        //}
+      /*  for (size_t i = 0; i != num_rows; ++i){
+            this->data(places[i] + offset).add(assert_cast<const ColumnType&>(*dst));
+        }*/
+     /*   auto& col = assert_cast<IColumn&>(*dst);
+        for (size_t i = 0; i != num_rows; ++i){
+            Data& data_ = this->data(places[i] + offset);
+            data_.insert_result_into(col);
+        }
+*/
+
+        auto& to_arr = assert_cast<ColumnArray&>(*dst);
+        auto& to_nested_col = to_arr.get_data();
+        for (size_t i = 0; i != num_rows; ++i){
+            if (to_nested_col.is_nullable()) {
+                auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+                this->data(places[i] + offset).insert_result_into(col_null->get_nested_column());
+                col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
+            } else {
+                this->data(places[i] + offset).insert_result_into(to_nested_col);
+            }
+            to_arr.get_offsets().push_back(to_nested_col.size());
+        }
     }
 
     void deserialize_and_merge_from_column(AggregateDataPtr __restrict place, const IColumn& column,
@@ -211,13 +238,16 @@ public:
     void deserialize_and_merge_from_column_range(AggregateDataPtr __restrict place,
                                                  const IColumn& column, size_t begin, size_t end,
                                                  Arena* arena) const override {
-        //todo
+
     }
 
     void deserialize_and_merge_vec(const AggregateDataPtr* places, size_t offset,
                                    AggregateDataPtr rhs, const ColumnString* column, Arena* arena,
                                    const size_t num_rows) const override {
-        //todo
+        auto& col = assert_cast<const ColumnArray&>(*assert_cast<const IColumn*>(column));
+        for (size_t i = 0; i != num_rows; ++i){
+            this->data(places[i]).add(col[i]);
+        }
     }
 
     void deserialize_and_merge_vec_selected(const AggregateDataPtr* places, size_t offset,
