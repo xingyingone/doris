@@ -33,16 +33,12 @@ struct AggregateFunctionArrayAggData {
     AggregateFunctionArrayAggData() { __builtin_unreachable(); }
 
     AggregateFunctionArrayAggData(const DataTypes& argument_types) {
-        _type = remove_nullable(argument_types[0]);
+        _type = make_nullable(argument_types[0]);
         _column = _type->create_column();
     }
 
     void add(const StringRef& column) {
-        ArenaKeyHolder key_holder {column, _arena};
-        if (column.size > 0) {
-            key_holder_persist_key(key_holder);
-        }
-        _column->insert_data(key_holder.key.data, key_holder.key.size);
+        _column->insert_data(column.data, column.size);
     }
 
     void add(const Field& column){
@@ -75,7 +71,7 @@ struct AggregateFunctionArrayAggData {
         size_t num_rows = _column->size();
         for(size_t i=0;i<num_rows;++i){
 
-            auto column=static_cast<ColumnType&>(*_column).get_data_at(i);
+            auto column=_column->get_data_at(i);
 
             assert_cast<ColumnType&>(to).insert_data(column.data,column.size);
         }
@@ -133,7 +129,9 @@ public:
 
     void add(AggregateDataPtr __restrict place, const IColumn** columns, size_t row_num,
              Arena* arena) const override {
-        if(columns[0]->is_nullable()) {
+        this->data(place).add(
+                columns[0]->get_data_at(row_num));
+       /* if(columns[0]->is_nullable()) {
             auto& nullable_col = assert_cast<const ColumnNullable&>(*columns[0]);
             auto& nullable_map = nullable_col.get_null_map_data();
             if (nullable_map[row_num]) {
@@ -146,7 +144,7 @@ public:
         } else {
             this->data(place).add(
                     assert_cast<const ColumnType&>(*columns[0]).get_data_at(row_num));
-        }
+        }*/
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
