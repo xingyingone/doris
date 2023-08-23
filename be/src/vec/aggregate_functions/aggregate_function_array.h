@@ -77,12 +77,30 @@ struct AggregateFunctionArrayAggData {
         }
     }
 
+
+
+    void insert_result_into(ColumnArray& to) const {
+        auto& to_nested_col = to.get_data();
+
+        auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+        size_t num_rows = _column->size();
+        for(size_t i=0;i<num_rows;++i){
+            auto column=_column->get_data_at(i);
+            assert_cast<ColumnType&>(col_null->get_nested_column()).insert_data(column.data,column.size);
+            if(column.data==NULL||column.size==0){
+                col_null->get_null_map_data().push_back(1);
+            }else{
+                col_null->get_null_map_data().push_back(0);
+            }
+        }
+    }
+
+
 private:
     using ColumnType =
             std::conditional_t<std::is_same_v<String, K>, ColumnString, ColumnVectorOrDecimal<K>>;
     IColumn::MutablePtr _column;
     DataTypePtr _type;
-    Arena _arena;
 };
 
 /** Not an aggregate function, but an adapter of aggregate functions,
@@ -149,7 +167,7 @@ public:
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
                                            const size_t num_rows, Arena* arena) const override {
-        //todo
+        __builtin_unreachable();
     }
 
     void deserialize_from_column(AggregateDataPtr places, const IColumn& column, Arena* arena,
@@ -277,9 +295,10 @@ public:
         auto& to_arr = assert_cast<ColumnArray&>(to);
         auto& to_nested_col = to_arr.get_data();
         if (to_nested_col.is_nullable()) {
-            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+           /* auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
             this->data(place).insert_result_into(col_null->get_nested_column());
-            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
+            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 1);*/
+            this->data(place).insert_result_into(to_arr);
         } else {
             this->data(place).insert_result_into(to_nested_col);
         }
