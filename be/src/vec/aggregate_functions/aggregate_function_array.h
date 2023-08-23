@@ -67,32 +67,29 @@ struct AggregateFunctionArrayAggData {
     }
 
     void insert_result_into(IColumn& to) const {
-
+        auto& to_arr = assert_cast<ColumnArray&>(to);
+        auto& to_nested_col = to_arr.get_data();
         size_t num_rows = _column->size();
-        for(size_t i=0;i<num_rows;++i){
+        if (to_nested_col.is_nullable()) {
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            for(size_t i=0;i<num_rows;++i){
+                auto column=_column->get_data_at(i);
+                assert_cast<ColumnType&>(col_null->get_nested_column()).insert_data(column.data,column.size);
+                if(column.data==NULL||column.size==0){
+                    col_null->get_null_map_data().push_back(1);
+                }else{
+                    col_null->get_null_map_data().push_back(0);
+                }
+            }
+        }else{
+            for(size_t i=0;i<num_rows;++i){
 
-            auto column=_column->get_data_at(i);
+                auto column=_column->get_data_at(i);
 
-            assert_cast<ColumnType&>(to).insert_data(column.data,column.size);
-        }
-    }
-
-
-
-    void insert_result_into(ColumnArray& to) const {
-        auto& to_nested_col = to.get_data();
-
-        auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
-        size_t num_rows = _column->size();
-        for(size_t i=0;i<num_rows;++i){
-            auto column=_column->get_data_at(i);
-            assert_cast<ColumnType&>(col_null->get_nested_column()).insert_data(column.data,column.size);
-            if(column.data==NULL||column.size==0){
-                col_null->get_null_map_data().push_back(1);
-            }else{
-                col_null->get_null_map_data().push_back(0);
+                assert_cast<ColumnType&>(to_nested_col).insert_data(column.data,column.size);
             }
         }
+        to_arr.get_offsets().push_back(to_nested_col.size());
     }
 
 
@@ -149,20 +146,6 @@ public:
              Arena* arena) const override {
         this->data(place).add(
                 columns[0]->get_data_at(row_num));
-       /* if(columns[0]->is_nullable()) {
-            auto& nullable_col = assert_cast<const ColumnNullable&>(*columns[0]);
-            auto& nullable_map = nullable_col.get_null_map_data();
-            if (nullable_map[row_num]) {
-                //todo
-                return;
-            }
-            this->data(place).add(
-                    assert_cast<const ColumnType&>(nullable_col.get_nested_column())
-                            .get_data_at(row_num));
-        } else {
-            this->data(place).add(
-                    assert_cast<const ColumnType&>(*columns[0]).get_data_at(row_num));
-        }*/
     }
 
     void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
@@ -177,78 +160,17 @@ public:
 
     void serialize_to_column(const std::vector<AggregateDataPtr>& places, size_t offset,
                              MutableColumnPtr& dst, const size_t num_rows) const override {
-
-        //for (size_t i = 0; i != num_rows; ++i) {
-         //   insert_result_into(places[i] + offset,assert_cast<IColumn&>(*dst));
-            //Data& data_ = this->data(places[i] + offset);
-            //data_.insert_result_into(*dst);
-        //}
-      /*  for (size_t i = 0; i != num_rows; ++i){
-            this->data(places[i] + offset).add(assert_cast<const ColumnType&>(*dst));
-        }*/
-     /*   auto& col = assert_cast<IColumn&>(*dst);
         for (size_t i = 0; i != num_rows; ++i){
-            Data& data_ = this->data(places[i] + offset);
-            data_.insert_result_into(col);
-        }
-*/
-
-        auto& to_arr = assert_cast<ColumnArray&>(*dst);
-        auto& to_nested_col = to_arr.get_data();
-        for (size_t i = 0; i != num_rows; ++i){
-            if (to_nested_col.is_nullable()) {
-                auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
-                this->data(places[i] + offset).insert_result_into(col_null->get_nested_column());
-                col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
-            } else {
-                this->data(places[i] + offset).insert_result_into(to_nested_col);
-            }
-            to_arr.get_offsets().push_back(to_nested_col.size());
+            this->data(places[i] + offset).insert_result_into(*dst);
         }
     }
 
     void deserialize_and_merge_from_column(AggregateDataPtr __restrict place, const IColumn& column,
                                            Arena* arena) const override {
-        //auto& column_arr = assert_cast<const ColumnArray&>(column);
         const size_t num_rows = column.size();
         for (size_t i = 0; i != num_rows; ++i){
             this->data(place).add(column[i]);
         }
-      //  auto& column_arr = assert_cast<const ColumnArray&>(column);
-       // auto& column_nested_col = column_arr.get_data();
-     /*   const size_t num_rows = column.size();
-        for (size_t i = 0; i != num_rows; ++i){
-
-            StringRef key;
-            if constexpr (std::is_same_v<T, String>){
-                auto string = this->data(place).add(
-                        column[i].get<T>());
-                key = string;
-            }else{
-                auto& k = column[i].get<Type>();
-                key.data = reinterpret_cast<const char*>(&k);
-                key.size = sizeof(k);
-            }*/
-
-
-           /* if(column_nested_col.is_nullable()){
-                auto& nullable_col = assert_cast<const ColumnNullable&>(column);
-                auto& nullable_map = nullable_col.get_null_map_data();
-                if (nullable_map[i]) {
-                    //todo
-                    return;
-                }
-                this->data(place).add(
-                        assert_cast<const ColumnType&>(nullable_col.get_nested_column())
-                                .get_data_at(i));
-            }else{
-                this->data(place).add(
-                        assert_cast<const ColumnType&>(column).get_data_at(i));
-            }*/
-        //}
-
-
-
     }
 
     void deserialize_and_merge_from_column_range(AggregateDataPtr __restrict place,
@@ -279,30 +201,12 @@ public:
 
     void serialize_without_key_to_column(ConstAggregateDataPtr __restrict place,
                                          IColumn& to) const override {
-        auto& to_arr = assert_cast<ColumnArray&>(to);
-        auto& to_nested_col = to_arr.get_data();
-        if (to_nested_col.is_nullable()) {
-            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
-            this->data(place).insert_result_into(col_null->get_nested_column());
-            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 0);
-        } else {
-            this->data(place).insert_result_into(to_nested_col);
-        }
-        to_arr.get_offsets().push_back(to_nested_col.size());
+        this->data(place).insert_result_into(to);
     }
 
+
     void insert_result_into(ConstAggregateDataPtr __restrict place, IColumn& to) const override {
-        auto& to_arr = assert_cast<ColumnArray&>(to);
-        auto& to_nested_col = to_arr.get_data();
-        if (to_nested_col.is_nullable()) {
-           /* auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
-            this->data(place).insert_result_into(col_null->get_nested_column());
-            col_null->get_null_map_data().resize_fill(col_null->get_nested_column().size(), 1);*/
-            this->data(place).insert_result_into(to_arr);
-        } else {
-            this->data(place).insert_result_into(to_nested_col);
-        }
-        to_arr.get_offsets().push_back(to_nested_col.size());
+        this->data(place).insert_result_into(to);
     }
 
     [[nodiscard]] MutableColumnPtr create_serialize_column() const override {
