@@ -46,17 +46,6 @@ struct AggregateFunctionArrayAggData {
         const auto count = column_array.size();
 
         for (size_t i = 0; i != count; ++i){
-           /* StringRef key;
-            if constexpr (std::is_same_v<K, String>) {
-                auto string = column_array[i].get<K>();
-                key = string;
-            } else {
-                auto& k = column_array[i].get<Type>();
-                key.data = reinterpret_cast<const char*>(&k);
-                key.size = sizeof(k);
-            }*/
-
-
             _column->insert(column_array[i]);
         }
 
