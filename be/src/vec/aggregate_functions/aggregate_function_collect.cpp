@@ -33,7 +33,7 @@ AggregateFunctionPtr do_create_agg_function_collect(bool distinct, const DataTyp
     if (argument_types[0]->is_nullable()) {
         if constexpr (ShowNull::value) {
             return creator_without_type::create_ignore_nullable<AggregateFunctionCollect<
-                    AggregateFunctionCollectListData<T, HasLimit>, HasLimit, ShowNull>>(
+                    AggregateFunctionCollectListData<T, HasLimit, true>, HasLimit, std::true_type>>(
                     argument_types, result_is_nullable);
         }
     }
@@ -44,7 +44,7 @@ AggregateFunctionPtr do_create_agg_function_collect(bool distinct, const DataTyp
                 argument_types, result_is_nullable);
     } else {
         return creator_without_type::create<AggregateFunctionCollect<
-                AggregateFunctionCollectListData<T, HasLimit>, HasLimit, std::false_type>>(
+                AggregateFunctionCollectListData<T, HasLimit,false>, HasLimit, std::false_type>>(
                 argument_types, result_is_nullable);
     }
 }
