@@ -317,14 +317,11 @@ struct AggregateFunctionCollectListData{
             auto& to_nested_col = to_arr.get_data();
             auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
             auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
-            size_t old_size=vec.size();
-            DCHECK(old_size==0);
             size_t num_rows=null_map->size();
-            vec.resize(old_size + num_rows);
             auto& nested_column_data=nested_column->get_data();
             for (size_t i = 0; i < num_rows; ++i){
                 col_null->get_null_map_data().push_back((*null_map)[i]);
-                vec[i]=nested_column_data[i];
+                vec.push_back(nested_column_data[i]);
             }
             to_arr.get_offsets().push_back(to_nested_col.size());
         }
