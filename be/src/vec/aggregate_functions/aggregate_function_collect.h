@@ -332,13 +332,51 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit,Nullable> {
     using ColVecType = ColumnString;
     MutableColumnPtr data;
     Int64 max_size = -1;
+    /**add by alex*/
+    MutableColumnPtr column_data;
+    ColVecType* nested_column;
+    NullMap* null_map;
+    /**end*/
 
-    AggregateFunctionCollectListData() { data = ColVecType::create(); }
+    AggregateFunctionCollectListData() {
+        if constexpr (Nullable)
+        {
+            column_data = ColumnNullable::create(ColVecType::create(),ColumnUInt8::create());
+            null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
+            nested_column= assert_cast<ColVecType*>(assert_cast<ColumnNullable&>(*column_data).get_nested_column_ptr().get());
+        } else{
+            data = ColVecType::create();
+        }
+    }
 
     size_t size() const { return data->size(); }
 
-    void add(const IColumn& column, size_t row_num) { data->insert_from(column, row_num); }
-    void add_new(const IColumn& column, size_t row_num){};
+    void add(const IColumn& column, size_t row_num) {
+        if constexpr (Nullable){
+            DCHECK(null_map->size()==nested_column->size());
+            const auto& col= assert_cast<const ColumnNullable&>(column);
+            const auto& vec=assert_cast<const ColVecType&>(col.get_nested_column());
+            null_map->push_back(col.get_null_map_data()[row_num]);
+            //todo size? need resize?
+            nested_column->insert_from(vec,row_num);
+            DCHECK(null_map->size()==nested_column->size());
+        }else{
+            data->insert_from(column, row_num);
+        }
+    }
+
+    //todo : bug exist
+    void add_new(const IColumn& column, size_t row_num){
+        if constexpr (Nullable){
+            DCHECK(null_map->size()==nested_column->size());
+            const auto& col= assert_cast<const ColumnNullable&>(column);
+            const auto& vec=assert_cast<const ColVecType&>(col.get_nested_column());
+            null_map->push_back(col.get_null_map_data()[row_num]);
+            //todo size? need resize?
+            nested_column->insert_from(vec,row_num);
+            DCHECK(null_map->size()==nested_column->size());
+        }
+    };
     void merge(const AggregateFunctionCollectListData& rhs) {
         if constexpr (HasLimit::value) {
             DCHECK(max_size == -1 || max_size == rhs.max_size);
@@ -528,12 +566,14 @@ public:
     }
 
     [[nodiscard]] MutableColumnPtr create_serialize_column() const override{
-        using KeyColumnType =
-                std::conditional_t<std::is_same_v<String, typename Data::ElementType>, ColumnString, ColumnVectorOrDecimal<typename Data::ElementType>>;
+       // using KeyColumnType =
+         //       std::conditional_t<std::is_same_v<String, typename Data::ElementType>, ColumnString, ColumnVectorOrDecimal<typename Data::ElementType>>;
         if constexpr(ShowNull::value){
-            if constexpr(IsNumber<typename Data::ElementType>){
+            if constexpr(IsDecimalNumber<typename Data::ElementType>){
+                return ColumnString::create();
+            } else {
                 return  get_return_type()->create_column();
-                return ColumnNullable::create(KeyColumnType::create(),ColumnUInt8::create());
+               // return ColumnNullable::create(KeyColumnType::create(),ColumnUInt8::create());
             }
                 //return ColumnNullable::create(KeyColumnType::create(),ColumnUInt8::create());
 
