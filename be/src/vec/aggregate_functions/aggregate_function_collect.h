@@ -227,8 +227,11 @@ struct AggregateFunctionCollectListData{
             auto& to_nested_col = to_arr.get_data();
             auto col_null = reinterpret_cast<const ColumnNullable*>(&to_nested_col);
             const auto& vec=assert_cast<const ColVecType&>(col_null->get_nested_column()).get_data();
-            null_map->push_back(col_null->get_null_map_data()[row_num]);
-            nested_column->get_data().push_back(vec[row_num]);
+            auto row_nums=col_null->get_null_map_data().size();
+            for(auto i=0;i<row_nums;++i){
+                null_map->push_back(col_null->get_null_map_data()[i]);
+                nested_column->get_data().push_back(vec[i]);
+            }
         }else{
             const auto& vec = assert_cast<const ColVecType&>(column).get_data();
             data.push_back(vec[row_num]);
@@ -285,6 +288,7 @@ struct AggregateFunctionCollectListData{
             vec.resize(old_size + size());
             memcpy(vec.data() + old_size, data.data(), size() * sizeof(ElementType));
         } else {
+            DCHECK(0);
             auto& to_arr = assert_cast<ColumnArray&>(to);
             auto& to_nested_col = to_arr.get_data();
             auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
@@ -314,11 +318,13 @@ struct AggregateFunctionCollectListData{
             auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
             auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
             size_t old_size=vec.size();
+            DCHECK(old_size==0);
             size_t num_rows=null_map->size();
             vec.resize(old_size + num_rows);
+            auto& nested_column_data=nested_column->get_data();
             for (size_t i = 0; i < num_rows; ++i){
                 col_null->get_null_map_data().push_back((*null_map)[i]);
-                vec[i]=nested_column->get_data()[i];
+                vec[i]=nested_column_data[i];
             }
             to_arr.get_offsets().push_back(to_nested_col.size());
         }
