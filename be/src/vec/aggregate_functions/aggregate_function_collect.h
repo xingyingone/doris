@@ -194,9 +194,9 @@ struct AggregateFunctionCollectListData{
    AggregateFunctionCollectListData(){
         if constexpr (Nullable){
             if constexpr (IsDecimalNumber<T>){
-                column_data = ColumnNullable::create(ColVecType::create(0,0),ColumnUInt8::create());
-                null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
-                nested_column= assert_cast<ColVecType*>(assert_cast<ColumnNullable&>(*column_data).get_nested_column_ptr().get());
+                //column_data = ColumnNullable::create(ColVecType::create(0,0),ColumnUInt8::create());
+                //null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
+                //nested_column= assert_cast<ColVecType*>(assert_cast<ColumnNullable&>(*column_data).get_nested_column_ptr().get());
             }else{
                 column_data = ColumnNullable::create(ColVecType::create(),ColumnUInt8::create());
                 null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
@@ -205,15 +205,30 @@ struct AggregateFunctionCollectListData{
         }
     }
 
+
     void add(const IColumn& column, size_t row_num) {
         if constexpr (Nullable){
             DCHECK(null_map->size()==nested_column->size());
-         const auto& col= assert_cast<const ColumnNullable&>(column);
-         const auto& vec=assert_cast<const ColVecType&>(col.get_nested_column()).get_data();
-         null_map->push_back(col.get_null_map_data()[row_num]);
-         //todo size? need resize?
-         nested_column->get_data()[row_num]=vec[row_num];
-         DCHECK(null_map->size()==nested_column->size());
+            const auto& col= assert_cast<const ColumnNullable&>(column);
+            const auto& vec=assert_cast<const ColVecType&>(col.get_nested_column()).get_data();
+            null_map->push_back(col.get_null_map_data()[row_num]);
+            //todo size? need resize?
+            nested_column->get_data().push_back(vec[row_num]);
+            DCHECK(null_map->size()==nested_column->size());
+        }else{
+            const auto& vec = assert_cast<const ColVecType&>(column).get_data();
+            data.push_back(vec[row_num]);
+        }
+    }
+
+    void add_new(const IColumn& column, size_t row_num) {
+        if constexpr (Nullable){
+            auto& to_arr = assert_cast<const ColumnArray&>(column);
+            auto& to_nested_col = to_arr.get_data();
+            auto col_null = reinterpret_cast<const ColumnNullable*>(&to_nested_col);
+            const auto& vec=assert_cast<const ColVecType&>(col_null->get_nested_column()).get_data();
+            null_map->push_back(col_null->get_null_map_data()[row_num]);
+            nested_column->get_data().push_back(vec[row_num]);
         }else{
             const auto& vec = assert_cast<const ColVecType&>(column).get_data();
             data.push_back(vec[row_num]);
@@ -293,14 +308,19 @@ struct AggregateFunctionCollectListData{
 
     void insert_result_into_new(IColumn& to) const{
 
-        size_t num_rows=null_map->size();
-        auto& col = assert_cast<ColumnNullable&>(to);
-        size_t old_size= col.get_null_map_data().size();
-        assert_cast<ColVecType&>(col.get_nested_column()).get_data().resize(old_size+num_rows);
-        //col.get_nested_column_ptr need resize?
-        for (size_t i = 0; i < num_rows; ++i){
-            //col.get_null_map_data().push_back(null_map[i]);
-            //assert_cast<ColVecType*>(col.get_nested_column_ptr().get())[i]=nested_column->get_data()[i];
+        if constexpr (Nullable){
+            auto& to_arr = assert_cast<ColumnArray&>(to);
+            auto& to_nested_col = to_arr.get_data();
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
+            size_t old_size=vec.size();
+            size_t num_rows=null_map->size();
+            vec.resize(old_size + num_rows);
+            for (size_t i = 0; i < num_rows; ++i){
+                col_null->get_null_map_data().push_back((*null_map)[i]);
+                vec[i]=nested_column->get_data()[i];
+            }
+            to_arr.get_offsets().push_back(to_nested_col.size());
         }
     }
 
@@ -318,7 +338,7 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit,Nullable> {
     size_t size() const { return data->size(); }
 
     void add(const IColumn& column, size_t row_num) { data->insert_from(column, row_num); }
-
+    void add_new(const IColumn& column, size_t row_num){};
     void merge(const AggregateFunctionCollectListData& rhs) {
         if constexpr (HasLimit::value) {
             DCHECK(max_size == -1 || max_size == rhs.max_size);
@@ -440,8 +460,8 @@ public:
             data.add(*columns[0], row_num, arena);
         } else {
             if (ShowNull::value && columns[0]->is_nullable()) {
-                auto& nullable_col = assert_cast<const ColumnNullable&>(*columns[0]);
-                data.add(nullable_col.get_nested_column(), row_num);
+                //auto& nullable_col = assert_cast<const ColumnNullable&>(*columns[0]);
+                data.add(*columns[0], row_num);
             } else {
                 data.add(*columns[0], row_num);
             }
@@ -473,7 +493,7 @@ public:
         auto& to_nested_col = to_arr.get_data();
         if constexpr (ShowNull::value) {
             DCHECK(to_nested_col.is_nullable());
-            this->data(place).insert_result_into(to, true);
+            this->data(place).insert_result_into_new(to);
         } else {
             if (to_nested_col.is_nullable()) {
                 auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
@@ -500,7 +520,7 @@ public:
         if constexpr (ShowNull::value){
             const size_t num_rows = column.size();
             for (size_t i = 0; i != num_rows; ++i){
-                this->data(place).add(column,i);
+                this->data(place).add_new(column,i);
             }
         }else{
             return BaseHelper::deserialize_and_merge_from_column(place, column, arena);
@@ -508,21 +528,27 @@ public:
     }
 
     [[nodiscard]] MutableColumnPtr create_serialize_column() const override{
+        using KeyColumnType =
+                std::conditional_t<std::is_same_v<String, typename Data::ElementType>, ColumnString, ColumnVectorOrDecimal<typename Data::ElementType>>;
         if constexpr(ShowNull::value){
-            //return ColumnNullable::create();
-            return ColumnString::create();
-        }else{
-            return ColumnString::create();
-        };
+            if constexpr(IsNumber<typename Data::ElementType>){
+                return  get_return_type()->create_column();
+                return ColumnNullable::create(KeyColumnType::create(),ColumnUInt8::create());
+            }
+                //return ColumnNullable::create(KeyColumnType::create(),ColumnUInt8::create());
+
+        }
+        return ColumnString::create();
     }
 
-    /*[[nodiscard]] DataTypePtr get_serialized_type() const override {
+
+    [[nodiscard]] DataTypePtr get_serialized_type() const override {
         if constexpr(ShowNull::value){
-            return std::make_shared<DataTypeNullable>();
+            return std::make_shared<DataTypeArray>(make_nullable(return_type));
         } else {
             return IAggregateFunction::get_serialized_type();
         }
-    }*/
+    }
 
 private:
     DataTypePtr return_type;
