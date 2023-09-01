@@ -632,6 +632,10 @@ public:
                     const auto& vec_src=assert_cast<const ColumnString&>(col_src.get_nested_column());
                     vec.insert_from(vec_src,i);
                 }else{
+                    using ColVecType = ColumnVectorOrDecimal<typename Data::ElementType>;
+                    auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
+                    auto& vec_src = assert_cast<const ColVecType&>(col_src.get_nested_column()).get_data();
+                    vec.push_back(vec_src[i]);
                 }
                 to_arr.get_offsets().push_back(to_nested_col.size());
             }
