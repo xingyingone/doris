@@ -221,23 +221,6 @@ struct AggregateFunctionCollectListData{
         }
     }
 
-    void add_new(const IColumn& column, size_t row_num) {
-        if constexpr (Nullable){
-            auto& to_arr = assert_cast<const ColumnArray&>(column);
-            auto& to_nested_col = to_arr.get_data();
-            auto col_null = reinterpret_cast<const ColumnNullable*>(&to_nested_col);
-            const auto& vec=assert_cast<const ColVecType&>(col_null->get_nested_column()).get_data();
-            auto row_nums=col_null->get_null_map_data().size();
-            for(auto i=0;i<row_nums;++i){
-                null_map->push_back(col_null->get_null_map_data()[i]);
-                nested_column->get_data().push_back(vec[i]);
-            }
-        }else{
-            const auto& vec = assert_cast<const ColVecType&>(column).get_data();
-            data.push_back(vec[row_num]);
-        }
-    }
-
     void add_new_new(const IColumn& column, size_t row_num){
         if constexpr (Nullable){
             auto& to_arr = assert_cast<const ColumnArray&>(column);
@@ -385,18 +368,6 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit,Nullable> {
 
     void add_new_new(const IColumn& column, size_t row_num){}
 
-    //todo : bug exist
-    void add_new(const IColumn& column, size_t row_num){
-        if constexpr (Nullable){
-            DCHECK(null_map->size()==nested_column->size());
-            const auto& col= assert_cast<const ColumnNullable&>(column);
-            const auto& vec=assert_cast<const ColVecType&>(col.get_nested_column());
-            null_map->push_back(col.get_null_map_data()[row_num]);
-            //todo size? need resize?
-            nested_column->insert_from(vec,row_num);
-            DCHECK(null_map->size()==nested_column->size());
-        }
-    };
     void merge(const AggregateFunctionCollectListData& rhs) {
         if constexpr (HasLimit::value) {
             DCHECK(max_size == -1 || max_size == rhs.max_size);
@@ -578,7 +549,7 @@ public:
         if constexpr (ShowNull::value){
             const size_t num_rows = column.size();
             for (size_t i = 0; i != num_rows; ++i){
-                this->data(place).add_new(column,i);
+                this->data(place).add_new_new(column,i);
             }
         }else{
             return BaseHelper::deserialize_and_merge_from_column(place, column, arena);
