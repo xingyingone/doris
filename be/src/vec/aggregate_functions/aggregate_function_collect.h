@@ -181,6 +181,10 @@ struct AggregateFunctionCollectListData{
     using ElementType = T;
     using ColVecType = ColumnVectorOrDecimal<ElementType>;
     using SelfType = AggregateFunctionCollectListData<ElementType, HasLimit,Nullable>;
+    using ResultDataType =
+            std::conditional_t<IsDecimalV2<T>, DataTypeDecimal<Decimal128>,
+                    std::conditional_t<IsDecimalNumber<T>, DataTypeDecimal<Decimal128I>,
+                            DataTypeNumber<Float64>>>;
     /**add by alex*/
     MutableColumnPtr column_data;
     ColVecType* nested_column;
@@ -191,13 +195,28 @@ struct AggregateFunctionCollectListData{
 
     size_t size() const { return data.size(); }
 
-   AggregateFunctionCollectListData(){
+    AggregateFunctionCollectListData(const DataTypes& argument_types){
         if constexpr (Nullable){
             if constexpr (IsDecimalNumber<T>){
-                //column_data = ColumnNullable::create(ColVecType::create(0,0),ColumnUInt8::create());
-                //null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
-                //nested_column= assert_cast<ColVecType*>(assert_cast<ColumnNullable&>(*column_data).get_nested_column_ptr().get());
-            }else{
+                DataTypePtr return_type= make_nullable(argument_types[0]);
+                column_data= return_type->create_column();
+
+               // auto scale=get_decimal_scale(*argument_types[0]);
+                //column_data = ColumnNullable::create(ColVecType::create(ResultDataType::max_precision(),2),ColumnUInt8::create());
+                null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
+                nested_column= assert_cast<ColVecType*>(assert_cast<ColumnNullable&>(*column_data).get_nested_column_ptr().get());
+                auto m=null_map->size();
+                auto n=nested_column->size();
+                nested_column->clear();
+                auto n1=nested_column->size();
+                DCHECK(m==n || m==n1);
+            }
+        }
+    }
+
+   AggregateFunctionCollectListData(){
+        if constexpr (Nullable){
+            if constexpr (!IsDecimalNumber<T>){
                 column_data = ColumnNullable::create(ColVecType::create(),ColumnUInt8::create());
                 null_map=&(assert_cast<ColumnNullable&>(*column_data).get_null_map_data());
                 nested_column= assert_cast<ColVecType*>(assert_cast<ColumnNullable&>(*column_data).get_nested_column_ptr().get());
@@ -208,13 +227,17 @@ struct AggregateFunctionCollectListData{
 
     void add(const IColumn& column, size_t row_num) {
         if constexpr (Nullable){
-            DCHECK(null_map->size()==nested_column->size());
+            auto m=null_map->size();
+            auto n=nested_column->size();
+            DCHECK(m==n);
             const auto& col= assert_cast<const ColumnNullable&>(column);
             const auto& vec=assert_cast<const ColVecType&>(col.get_nested_column()).get_data();
             null_map->push_back(col.get_null_map_data()[row_num]);
             //todo size? need resize?
             nested_column->get_data().push_back(vec[row_num]);
-            DCHECK(null_map->size()==nested_column->size());
+            auto m1=null_map->size();
+            auto n1=nested_column->size();
+            DCHECK(m1==n1);
         }else{
             const auto& vec = assert_cast<const ColVecType&>(column).get_data();
             data.push_back(vec[row_num]);
@@ -495,6 +518,14 @@ public:
         }
     }
 
+    void create(AggregateDataPtr __restrict place) const override {
+        if constexpr (ShowNull::value){
+            if constexpr (IsDecimalNumber<typename Data::ElementType>){
+                new (place) Data(argument_types);
+            }
+        }
+    }
+
     DataTypePtr get_return_type() const override {
         return std::make_shared<DataTypeArray>(make_nullable(return_type));
     }
@@ -650,7 +681,7 @@ public:
          //       std::conditional_t<std::is_same_v<String, typename Data::ElementType>, ColumnString, ColumnVectorOrDecimal<typename Data::ElementType>>;
         if constexpr(ShowNull::value){
             if constexpr(IsDecimalNumber<typename Data::ElementType>){
-                return ColumnString::create();
+                return  get_return_type()->create_column();
             } else {
                 return  get_return_type()->create_column();
                // return ColumnNullable::create(KeyColumnType::create(),ColumnUInt8::create());
@@ -672,6 +703,7 @@ public:
 
 private:
     DataTypePtr return_type;
+    using IAggregateFunction::argument_types;
 };
 
 } // namespace doris::vectorized
