@@ -238,6 +238,21 @@ struct AggregateFunctionCollectListData{
         }
     }
 
+    void add_new_new(const IColumn& column, size_t row_num){
+        if constexpr (Nullable){
+            auto& to_arr = assert_cast<const ColumnArray&>(column);
+            auto& to_nested_col = to_arr.get_data();
+            auto col_null = reinterpret_cast<const ColumnNullable*>(&to_nested_col);
+            const auto& vec=assert_cast<const ColVecType&>(col_null->get_nested_column()).get_data();
+            auto start=to_arr.get_offsets()[row_num-1];
+            auto end = start + to_arr.get_offsets()[row_num] - to_arr.get_offsets()[row_num - 1];
+            for(auto i=start;i<end;++i){
+                null_map->push_back(col_null->get_null_map_data()[i]);
+                nested_column->get_data().push_back(vec[i]);
+            }
+        }
+    }
+
     void merge(const SelfType& rhs) {
         if constexpr (Nullable){
 
@@ -367,6 +382,8 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit,Nullable> {
             data->insert_from(column, row_num);
         }
     }
+
+    void add_new_new(const IColumn& column, size_t row_num){}
 
     //todo : bug exist
     void add_new(const IColumn& column, size_t row_num){
@@ -576,7 +593,7 @@ public:
           auto sizedd=col.size();
             DCHECK(sizedd==num_rows);
             for (size_t i = 0; i != num_rows; ++i){
-                this->data(places[i]).add_new(col,i);
+                this->data(places[i]).add_new_new(col,i);
             }
         }
     }
