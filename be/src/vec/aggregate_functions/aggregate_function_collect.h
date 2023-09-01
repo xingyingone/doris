@@ -473,6 +473,7 @@ class AggregateFunctionCollect
     static constexpr bool ENABLE_ARENA = std::is_same_v<Data, GenericType>;
 
 public:
+
     using BaseHelper = IAggregateFunctionHelper<AggregateFunctionCollect<Data, HasLimit, ShowNull>>;
 
     AggregateFunctionCollect(const DataTypes& argument_types,
@@ -593,6 +594,8 @@ public:
             for (size_t i = 0; i != num_rows; ++i){
                 this->data(places[i]).add_new_new(col,i);
             }
+        }else{
+            return BaseHelper::deserialize_and_merge_vec(places,offset,rhs,column,arena,num_rows);
         }
     }
 
@@ -603,9 +606,46 @@ public:
                 Data& data_ = this->data(places[i] + offset);
                 data_.insert_result_into_new(*dst);
             }
+        }else{
+            return BaseHelper::serialize_to_column(places,offset,dst,num_rows);
         }
     }
 
+
+    void streaming_agg_serialize_to_column(const IColumn** columns, MutableColumnPtr& dst,
+                                           const size_t num_rows, Arena* arena) const override{
+        if constexpr (ShowNull::value){
+            auto& to_arr = assert_cast<ColumnArray&>(*dst);
+            auto& to_nested_col = to_arr.get_data();
+            DCHECK(num_rows == columns[0]->size());
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+
+
+            auto& to_arr_src = assert_cast<const ColumnArray&>((*(columns[0])));
+            auto& to_nested_col_src = to_arr_src.get_data();
+            auto col_null_src = reinterpret_cast<const ColumnNullable*>(&to_nested_col_src);
+
+
+            for (size_t i = 0; i < num_rows; ++i) {
+                col_null->get_null_map_data().push_back(col_null_src->get_null_map_data()[i]);
+
+                if constexpr (std::is_same_v<StringRef, typename Data::ElementType> || std::is_same_v<String, typename Data::ElementType>){
+                    auto& vec = assert_cast<ColumnString&>(col_null->get_nested_column());
+                    auto& vec_src = assert_cast<const ColumnString&>(col_null_src->get_nested_column());
+                    vec.insert_from(vec_src,i);
+                }else{
+                    using ColVecType = ColumnVectorOrDecimal<typename Data::ElementType>;
+                    auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
+                    auto& vec_src = assert_cast<const ColVecType&>(col_null_src->get_nested_column()).get_data();
+                    vec.push_back(vec_src[i]);
+                }
+                to_arr.get_offsets().push_back(to_nested_col.size());
+            }
+
+        } else {
+            return BaseHelper::streaming_agg_serialize_to_column(columns,dst,num_rows,arena);
+        }
+    }
 
     [[nodiscard]] MutableColumnPtr create_serialize_column() const override{
        // using KeyColumnType =
