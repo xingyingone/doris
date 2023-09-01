@@ -366,7 +366,20 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit,Nullable> {
         }
     }
 
-    void add_new_new(const IColumn& column, size_t row_num){}
+    void add_new_new(const IColumn& column, size_t row_num){
+        if constexpr (Nullable){
+            auto& to_arr = assert_cast<const ColumnArray&>(column);
+            auto& to_nested_col = to_arr.get_data();
+            auto col_null = reinterpret_cast<const ColumnNullable*>(&to_nested_col);
+            const auto& vec=assert_cast<const ColVecType&>(col_null->get_nested_column());
+            auto start=to_arr.get_offsets()[row_num-1];
+            auto end = start + to_arr.get_offsets()[row_num] - to_arr.get_offsets()[row_num - 1];
+            for(auto i=start;i<end;++i){
+                null_map->push_back(col_null->get_null_map_data()[i]);
+                nested_column->insert_from(vec,i);
+            }
+        }
+    }
 
     void merge(const AggregateFunctionCollectListData& rhs) {
         if constexpr (HasLimit::value) {
@@ -432,7 +445,21 @@ struct AggregateFunctionCollectListData<StringRef, HasLimit,Nullable> {
         }
     }
 
-    void insert_result_into_new(IColumn& to) const{}
+    void insert_result_into_new(IColumn& to) const{
+        if constexpr (Nullable){
+            auto& to_arr = assert_cast<ColumnArray&>(to);
+            auto& to_nested_col = to_arr.get_data();
+            auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
+            auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column());
+            size_t num_rows=null_map->size();
+            for (size_t i = 0; i < num_rows; ++i){
+                col_null->get_null_map_data().push_back((*null_map)[i]);
+                vec.insert_from(*nested_column,i);
+            }
+            to_arr.get_offsets().push_back(to_nested_col.size());
+        }
+
+    }
 };
 
 //ShowNull is just used to support array_agg because array_agg needs to display NULL
