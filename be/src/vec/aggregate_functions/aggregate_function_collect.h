@@ -621,23 +621,17 @@ public:
             auto col_null = reinterpret_cast<ColumnNullable*>(&to_nested_col);
 
 
-            auto& to_arr_src = assert_cast<const ColumnArray&>((*(columns[0])));
-            auto& to_nested_col_src = to_arr_src.get_data();
-            auto col_null_src = reinterpret_cast<const ColumnNullable*>(&to_nested_col_src);
 
+            const auto& col_src= assert_cast<const ColumnNullable&>(*(columns[0]));
 
             for (size_t i = 0; i < num_rows; ++i) {
-                col_null->get_null_map_data().push_back(col_null_src->get_null_map_data()[i]);
+                col_null->get_null_map_data().push_back(col_src.get_null_map_data()[i]);
 
                 if constexpr (std::is_same_v<StringRef, typename Data::ElementType> || std::is_same_v<String, typename Data::ElementType>){
                     auto& vec = assert_cast<ColumnString&>(col_null->get_nested_column());
-                    auto& vec_src = assert_cast<const ColumnString&>(col_null_src->get_nested_column());
+                    const auto& vec_src=assert_cast<const ColumnString&>(col_src.get_nested_column());
                     vec.insert_from(vec_src,i);
                 }else{
-                    using ColVecType = ColumnVectorOrDecimal<typename Data::ElementType>;
-                    auto& vec = assert_cast<ColVecType&>(col_null->get_nested_column()).get_data();
-                    auto& vec_src = assert_cast<const ColVecType&>(col_null_src->get_nested_column()).get_data();
-                    vec.push_back(vec_src[i]);
                 }
                 to_arr.get_offsets().push_back(to_nested_col.size());
             }
