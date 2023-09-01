@@ -568,6 +568,30 @@ public:
         }
     }
 
+    void deserialize_and_merge_vec(const AggregateDataPtr* places, size_t offset,
+                                   AggregateDataPtr rhs, const ColumnString* column, Arena* arena,
+                                   const size_t num_rows) const override{
+        if constexpr (ShowNull::value){
+          auto& col = assert_cast<const ColumnArray&>(*assert_cast<const IColumn*>(column));
+          auto sizedd=col.size();
+            DCHECK(sizedd==num_rows);
+            for (size_t i = 0; i != num_rows; ++i){
+                this->data(places[i]).add_new(col,i);
+            }
+        }
+    }
+
+    void serialize_to_column(const std::vector<AggregateDataPtr>& places, size_t offset,
+                             MutableColumnPtr& dst, const size_t num_rows) const override{
+        if constexpr (ShowNull::value){
+            for (size_t i = 0; i != num_rows; ++i) {
+                Data& data_ = this->data(places[i] + offset);
+                data_.insert_result_into_new(*dst);
+            }
+        }
+    }
+
+
     [[nodiscard]] MutableColumnPtr create_serialize_column() const override{
        // using KeyColumnType =
          //       std::conditional_t<std::is_same_v<String, typename Data::ElementType>, ColumnString, ColumnVectorOrDecimal<typename Data::ElementType>>;
